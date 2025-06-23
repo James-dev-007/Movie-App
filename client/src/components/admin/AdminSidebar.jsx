@@ -32,7 +32,6 @@ const AdminSidebar = () => {
                                 <span className={`w-1.5 h-10 rounded-l right-0 absolute ${isActive && 'bg-primary'}`} />
                             </>
                         )}
-
                     </NavLink>
                 ))}
             </div>

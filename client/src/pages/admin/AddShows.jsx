@@ -4,6 +4,8 @@ import Loading from '../../components/Loading'
 import Title from '../../components/admin/Title'
 import { CheckIcon, DeleteIcon, StarIcon } from 'lucide-react'
 import { kConverter } from '../../lib/kConverter'
+import { useAppContext } from '../../context/AppContext'
+import toast from 'react-hot-toast'
 
 const AddShows = () => {
     const currency = import.meta.env.VITE_CURRENCY
@@ -12,10 +14,19 @@ const AddShows = () => {
     const [dateTimeSelection, setDateTimeSelection] = useState({})
     const [dateTimeInput, setDateTimeInput] = useState('')
     const [showPrice, setShowPrice] = useState('')
+    const [addingShow, setAddingShow] = useState(false)
 
+    const { axios, getToken, user, image_base_url } = useAppContext()
 
     const fetchNowPlayingoves = async () => {
-        setNowPlayingMovies(dummyShowsData)
+        try {
+            const { data } = await axios.get('/api/show/now-playing', { headers: { Authorization: `Bearer ${await getToken()}` } })
+            if (data.success) {
+                setNowPlayingMovies(data.movies)
+            }
+        } catch (error) {
+            console.error('Error Fetching Movies:', error)
+        }
     }
 
     const handleDateTimeAdd = () => {
@@ -46,9 +57,42 @@ const AddShows = () => {
         })
     }
 
+    const handleSubmit = async () => {
+        try {
+            setAddingShow(true)
+            if (!selectedMovies || Object.keys(dateTimeSelection).length === 0 || !showPrice) {
+                return toast('Missing Required Field')
+            }
+
+            const showsInput = Object.entries(dateTimeSelection).map(([date, time]) => ({ date, time }))
+            const payload = {
+                movieId: selectedMovies,
+                showsInput,
+                showPrice: Number(showPrice)
+            }
+
+            const { data } = await axios.post('/api/show/add', payload, { headers: { Authorization: `Bearer ${await getToken()}` } })
+
+            if (data.success) {
+                toast.success(data.message)
+                setSelectedMovies(null)
+                setDateTimeSelection({})
+                setShowPrice('')
+            } else {
+                toast.error(data.message)
+            }
+        } catch (error) {
+            console.error('Submission Error: ', error);
+            toast.error('An Error has Occured. Please try Again')
+        }
+        setAddingShow(false)
+    }
+
     useEffect(() => {
-        fetchNowPlayingoves()
-    }, [])
+        if (user) {
+            fetchNowPlayingoves()
+        }
+    }, [user])
 
     return nowPlayingMovies.length > 0 ? (
         <>
@@ -59,7 +103,7 @@ const AddShows = () => {
                     {nowPlayingMovies.map((movie) => (
                         <div key={movie.id} className={`relative max-w-40 cursor-pointer group-hover:not-hover:opacity-40 hover:-translate-y-1 transition duration-300`} onClick={() => setSelectedMovies(movie.id)} >
                             <div className='relative rounded-lg overflow-hidden'>
-                                <img src={movie.poster_path} alt="" className='w-full object-cover brightness-90' />
+                                <img src={image_base_url + movie.poster_path} alt="" className='w-full object-cover brightness-90' />
                                 <div className='text-sm flex items-center justify-between p-2 bg-black/70 w-full absolute bottom-0 left-0'>
                                     <p className='flex items-center gap-1 text-gray-400'>
                                         <StarIcon className='h-4 w-4 text-primary fill-primary' />
@@ -126,8 +170,8 @@ const AddShows = () => {
                 </div>
             )}
 
-            <button className='bg-primary text-white px-8 py-2 mt-6 rounded hover:bg-primary/90 transition-all cursor-pointer'>
-
+            <button onClick={handleSubmit} disabled={addingShow} className='bg-primary text-white px-8 py-2 mt-6 rounded hover:bg-primary/90 transition-all cursor-pointer'>
+                Add Show
             </button>
         </>
     ) : <Loading />
