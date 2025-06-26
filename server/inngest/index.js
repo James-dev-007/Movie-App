@@ -2,6 +2,7 @@ import { Inngest } from "inngest";
 import User from "../models/User.js";
 import Booking from "../models/Bookings.js";
 import Show from "../models/Show.js";
+import sendEmail from "../configs/nodeMailer.js";
 
 // Create a client to send and receive events
 export const inngest = new Inngest({ id: "booking-app" });
@@ -80,4 +81,33 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
     }
 )
 
-export const functions = [syncUserCreation, syncUserDeletion, syncUserUpdation, releaseSeatsAndDeleteBooking];
+// Function to send email when the user books the shows
+const sendBookingConfirmationEmail = inngest.createFunction(
+    { id: 'send-booking-confirmation-email' },
+    { event: 'app/show.booked' },
+    async ({ event, step }) => {
+        const { bookingId } = event.data
+        const booking = await Booking.findById(bookingId).populate({
+            path: 'show',
+            populate: { path: 'movie', model: 'Movie' }
+        }).populate('user')
+
+        await sendEmail({
+            to: booking.user.email,
+            subject: `Payment Confirmation: "${booking.show.movie.title}" booked!`,
+            body: `<div style="font-family: Arial, sans-serif; line-height: 1.5;">
+                    <h2>Hi ${booking.user.name},</h2>
+                    <p>Your booking for <strong style="color: #F84565;">"$
+                    {booking.show.movie.title}"</strong> is confirmed.</p>
+                    <p>
+                        <strong>Date:</strong> ${new Date(booking.show.showDateTime).toLocaleDateString('en-US', { timeZone: 'Africa/Pretoria' })}<br/>
+                        <strong>Time:</strong> ${new Date(booking.show.showDateTime).toLocaleTimeString('en-US', { timeZone: 'Africa/Pretoria' })}
+                    </p>
+                    <p>Enjoy the show!</p>
+                    <p>Thanks for booking with us!<br/>-The Grand Cinema>/p>
+                   </div>`
+        })
+    }
+)
+
+export const functions = [syncUserCreation, syncUserDeletion, syncUserUpdation, releaseSeatsAndDeleteBooking, sendBookingConfirmationEmail];
